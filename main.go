@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
@@ -12,8 +14,16 @@ import (
 )
 
 const frame_rate int = 60
-const password string = "TestPassword"
-const httpPort int = 3000
+
+//const password string = "TestPassword"
+//const httpPort int = 3000
+
+type CamstreamConfig struct {
+	Password string
+	Port     int
+}
+
+var config CamstreamConfig
 
 var webcam *gocv.VideoCapture
 var buffer = make(map[int][]byte)
@@ -42,7 +52,7 @@ func handleVideoStream(w http.ResponseWriter, r *http.Request) {
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 	user_password := r.URL.Query().Get("password")
-	if user_password == password {
+	if user_password == config.Password {
 		sendAcceptedResponse(w, r, token)
 	} else {
 		sendDeniedResponse(w, r, "Invalid Password")
@@ -74,7 +84,7 @@ func sendAcceptedResponse(w http.ResponseWriter, r *http.Request, response strin
 }
 
 func startServer() {
-	fmt.Println("Server available on port 3000")
+	fmt.Printf("Server available on port %d\n", config.Port)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/video", handleVideoStream)
@@ -85,7 +95,7 @@ func startServer() {
 	mux.Handle("/", http.RedirectHandler("/static/html/login.html", http.StatusSeeOther))
 	mux.Handle("/stream", http.RedirectHandler("/static/html/stream.html", http.StatusSeeOther))
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", httpPort), mux))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), mux))
 }
 
 func getframes() {
@@ -105,6 +115,14 @@ func getframes() {
 }
 
 func main() {
+	file, err := ioutil.ReadFile("config.json")
+	if err != nil {
+		fmt.Println("Couldn't find config!")
+		return
+	}
+	config = CamstreamConfig{}
+	err = json.Unmarshal([]byte(file), &config)
+
 	webcam, err = gocv.VideoCaptureDevice(0)
 	token = uuid.NewString()
 
