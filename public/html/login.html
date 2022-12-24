@@ -1,0 +1,44 @@
+<html>
+
+<head>
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    <title>CamStream Login</title>
+</head>
+
+<body>
+    <div class="w3-container w3-red">
+        <h1>CamStream</h1>
+    </div>
+
+    <div id="auth-failed" class="w3-modal">
+        <div class="w3-modal-content">
+            <div class="w3-container" style="padding-left: 0px; padding-right: 0px;">
+                <span onclick="document.getElementById('auth-failed').style.display='none'" class="w3-button w3-display-topright">&times;</span>
+                <div class="w3-container w3-red">
+                    <h1>Authentication Failed</h1>
+                </div>
+                <div class="w3-container">
+                    <p>Make sure you entered your password correctly!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="w3-container">
+        <div class="w3-panel w3-card-4">
+            <div class="w3-panel w3-light-gray">
+                <h1>Login</h1>
+            </div>
+            <div class="w3-panel">
+                <label for="password">Password</label><br>
+                <input type="password" id="password" name="password"><br><br>
+                <button onclick="authenticate()">Login</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+<script src="/static/js/http.js"></script>
+<script src="/static/js/login.js"></script>
+
+</html>
