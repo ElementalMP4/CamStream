@@ -18,6 +18,6 @@ The config is set in a file called `config.json`
 ```js
 {
   "port": 3000,
-   "password": "S3curePassw0rd"
+  "password": "S3curePassw0rd"
 }
 ```
