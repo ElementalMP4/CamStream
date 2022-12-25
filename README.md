@@ -21,3 +21,10 @@ The config is set in a file called `config.json`
   "password": "S3curePassw0rd"
 }
 ```
+
+## Things to note
+
+- This only runs on Linux
+- This has only been tested on a Raspberry Pi 4B
+- Go 1.19 is required, manual installation of Go may be necessary
+- If you get a `can't open camera by index` error, make sure your camera actually works, and try running CamStream as root
