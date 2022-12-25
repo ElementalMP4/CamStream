@@ -13,7 +13,7 @@ import (
 	"gocv.io/x/gocv"
 )
 
-const frame_rate int = 60
+const frame_rate int = 30
 
 //const password string = "TestPassword"
 //const httpPort int = 3000
