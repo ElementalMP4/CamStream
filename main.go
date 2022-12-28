@@ -7,16 +7,12 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"gocv.io/x/gocv"
 )
 
-const frame_rate int = 30
-
-//const password string = "TestPassword"
-//const httpPort int = 3000
+const frame_rate = 30
 
 type CamstreamConfig struct {
 	Password string
@@ -24,29 +20,62 @@ type CamstreamConfig struct {
 }
 
 var config CamstreamConfig
-
 var webcam *gocv.VideoCapture
-var buffer = make(map[int][]byte)
-var frame []byte
 var mutex = &sync.Mutex{}
-var err error
 var token string
 
-func handleVideoStream(w http.ResponseWriter, r *http.Request) {
+func streamHandler(w http.ResponseWriter, r *http.Request) {
 	user_token := r.URL.Query().Get("token")
-	if user_token == token {
-		r.Cookies()
-		w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
-		data := ""
-		for {
-			mutex.Lock()
-			data = "--frame\r\n  Content-Type: image/jpeg\r\n\r\n" + string(frame) + "\r\n\r\n"
-			mutex.Unlock()
-			time.Sleep(time.Duration(1000/frame_rate) * time.Millisecond) //60fps (ish)
-			w.Write([]byte(data))
-		}
-	} else {
+	if user_token != token {
 		sendForbiddenResponse(w, r, "Invalid Token. You need to log in.")
+		return
+	}
+	// Check if the webcam has been initialized
+	if webcam == nil {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		if webcam == nil {
+			// Open the webcam
+			webcam, _ = gocv.VideoCaptureDevice(0)
+		}
+	}
+
+	// Set the HTTP header
+	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+
+	// Stream the webcam frames
+	for {
+		// Capture a frame from the webcam
+		frame := gocv.NewMat()
+		if ok := webcam.Read(&frame); !ok {
+			http.Error(w, "Failed to read frame", http.StatusInternalServerError)
+			return
+		}
+		if frame.Empty() {
+			http.Error(w, "Empty frame", http.StatusInternalServerError)
+			return
+		}
+
+		// Encode the frame as a JPEG image
+		buf, err := gocv.IMEncode(".jpg", frame)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Write the boundary and image data to the response
+		w.Write([]byte("--frame\n"))
+		w.Write([]byte("Content-Type: image/jpeg\n"))
+		w.Write([]byte("Content-Length: " + fmt.Sprint(len(buf.GetBytes())) + "\n"))
+		w.Write([]byte("\n"))
+		w.Write(buf.GetBytes())
+		w.Write([]byte("\n"))
+		if fw, ok := w.(http.Flusher); ok {
+			fw.Flush()
+			buf.Close()
+			frame.Close()
+		}
 	}
 }
 
@@ -85,33 +114,16 @@ func sendAcceptedResponse(w http.ResponseWriter, r *http.Request, response strin
 
 func startServer() {
 	fmt.Printf("Server available on port %d\n", config.Port)
-	mux := http.NewServeMux()
 
-	mux.HandleFunc("/video", handleVideoStream)
-	mux.HandleFunc("/authenticate", handleLogin)
-	mux.HandleFunc("/validate", handleTokenValidation)
+	http.HandleFunc("/video", streamHandler)
+	http.HandleFunc("/authenticate", handleLogin)
+	http.HandleFunc("/validate", handleTokenValidation)
 
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./public"))))
-	mux.Handle("/", http.RedirectHandler("/static/html/login.html", http.StatusSeeOther))
-	mux.Handle("/stream", http.RedirectHandler("/static/html/stream.html", http.StatusSeeOther))
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./public"))))
+	http.Handle("/", http.RedirectHandler("/static/html/login.html", http.StatusSeeOther))
+	http.Handle("/stream", http.RedirectHandler("/static/html/stream.html", http.StatusSeeOther))
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), mux))
-}
-
-func getframes() {
-	img := gocv.NewMat()
-	defer img.Close()
-	for {
-		if ok := webcam.Read(&img); !ok {
-			fmt.Printf("Device closed\n")
-			return
-		}
-		if img.Empty() {
-			continue
-		}
-		frame_buffer, _ := gocv.IMEncode(".jpg", img)
-		frame = frame_buffer.GetBytes()
-	}
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil))
 }
 
 func main() {
@@ -120,10 +132,9 @@ func main() {
 		fmt.Println("Couldn't find config!")
 		return
 	}
+
 	config = CamstreamConfig{}
 	err = json.Unmarshal([]byte(file), &config)
-
-	webcam, err = gocv.VideoCaptureDevice(0)
 	token = uuid.NewString()
 
 	if err != nil {
@@ -131,7 +142,5 @@ func main() {
 		return
 	}
 
-	defer webcam.Close()
-	go getframes()
 	startServer()
 }
