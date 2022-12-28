@@ -30,23 +30,19 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 		sendForbiddenResponse(w, r, "Invalid Token. You need to log in.")
 		return
 	}
-	// Check if the webcam has been initialized
+
 	if webcam == nil {
 		mutex.Lock()
 		defer mutex.Unlock()
 
 		if webcam == nil {
-			// Open the webcam
 			webcam, _ = gocv.VideoCaptureDevice(0)
 		}
 	}
 
-	// Set the HTTP header
 	w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary=frame")
 
-	// Stream the webcam frames
 	for {
-		// Capture a frame from the webcam
 		frame := gocv.NewMat()
 		if ok := webcam.Read(&frame); !ok {
 			http.Error(w, "Failed to read frame", http.StatusInternalServerError)
@@ -57,14 +53,12 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Encode the frame as a JPEG image
 		buf, err := gocv.IMEncode(".jpg", frame)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Write the boundary and image data to the response
 		w.Write([]byte("--frame\n"))
 		w.Write([]byte("Content-Type: image/jpeg\n"))
 		w.Write([]byte("Content-Length: " + fmt.Sprint(len(buf.GetBytes())) + "\n"))
